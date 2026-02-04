@@ -13,3 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # config.py creates the Flask app and initializes extensions
 from config import app as application
 
+# CRITICAL: Import app.py AFTER config.py to register all API routes
+# This must come after the config import to ensure routes are properly registered
+import app
+
