@@ -54,8 +54,13 @@ CORS(app, supports_credentials=True, origins=[
 
 migrate= Migrate(app,db)
 
-db.init_app(app)
-
 api=Api(app)
 
 bcrypt= Bcrypt(app)
+
+db.init_app(app)
+migrate.init_app(app, db)
+
+print("Registered routes:")
+print(app.url_map)
+
