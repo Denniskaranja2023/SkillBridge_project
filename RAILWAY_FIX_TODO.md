@@ -1,56 +1,56 @@
-# Railway Deployment Fix - TODO List
+# Railway/Render Deployment Fix - COMPLETED
 
-## Issues Identified:
-1. Duplicate Flask app creation in app.py breaking all routes
-2. Incorrect Procfile path for gunicorn
-3. Missing Railway domain in CORS configuration
-4. SocketIO CORS missing Railway domains
-5. Hardcoded SESSION_COOKIE_DOMAIN breaking sessions
+## Issues Fixed:
 
-## Fixes Completed:
+### 1. Routes Not Registered ✅
+- **Problem**: Routes defined in `app.py` weren't registered on the Flask app
+- **Solution**: Created `wsgi.py` as the entry point that properly imports both `config.py` (for app creation) and `app.py` (for routes)
 
-### Step 1: Fix app.py Structure ✅
-- [x] Removed duplicate Flask app initialization at the bottom
-- [x] Kept routes registered on the imported app from config
-- [x] Fixed SocketIO CORS to include Railway domains
+### 2. CORS Configuration ✅
+- Added Railway domains to Flask-CORS
+- Added Railway domains to SocketIO CORS
+- Made SESSION_COOKIE_DOMAIN configurable via environment variable
 
-### Step 2: Fix Procfile ✅
-- [x] Corrected the gunicorn module path with quotes: `"server.config:app"`
+### 3. Procfile Updated ✅
+- Changed from: `web: gunicorn "server.config:app"`
+- To: `web: gunicorn "server.wsgi:application"`
 
-### Step 3: Fix CORS Configuration in config.py ✅
-- [x] Added Railway domains to Flask-CORS origins
-- [x] Made SESSION_COOKIE_DOMAIN configurable via environment variable
+## Files Modified:
 
-## Railway Environment Variables to Set:
+| File | Changes |
+|------|---------|
+| `server/wsgi.py` | NEW - Entry point for gunicorn that properly imports routes |
+| `server/config.py` | Added Railway CORS domains, made SESSION_COOKIE_DOMAIN configurable |
+| `Procfile` | Updated to use wsgi.py entry point |
 
-In your Railway dashboard, add these environment variables:
+## Deployment Instructions:
+
+### 1. Environment Variables to Set on Render/Railway:
 
 ```
 DATABASE_URL=<your-postgresql-connection-string>
-SESSION_COOKIE_DOMAIN=<your-railway-domain>.up.railway.app
+SESSION_COOKIE_DOMAIN=<your-domain>.onrender.com  (or .railway.app)
 ```
 
-Example:
+### 2. Build Command:
 ```
-DATABASE_URL=postgres://user:pass@containers-us-west-123.railway.app:5432/railway
-SESSION_COOKIE_DOMAIN=skillbridge-production.up.railway.app
-```
-
-## Testing After Deployment:
-1. Deploy to Railway
-2. Test API endpoints are accessible (e.g., `https://your-domain.railway.app/api/login`)
-3. Verify CORS requests work from Railway domain
-4. Test authentication/session cookies work properly
-
-## Client Configuration Update (if needed):
-Ensure your Client/src/config.js uses Railway URL:
-```javascript
-export const BASE_URL = import.meta.env.VITE_API_URL || 'https://your-railway-domain.up.railway.app';
+pip install -r requirements.txt
 ```
 
-## Common Railway Issues:
-- **Routes not accessible**: Check Railway logs for startup errors
-- **CORS errors**: Ensure SESSION_COOKIE_DOMAIN is set correctly
-- **Database connection**: Verify DATABASE_URL is set and using PostgreSQL
-- **Static files**: Railway may need extra configuration for file uploads
+### 3. Start Command:
+```
+gunicorn "server.wsgi:application"
+```
+
+### 4. Verify Deployment:
+- Visit `https://your-domain.onrender.com/api/login`
+- You should see route endpoints listed in logs at startup
+
+## Testing Locally:
+```bash
+cd server
+python wsgi.py
+```
+
+This should print all registered routes before starting the server.
 
