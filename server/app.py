@@ -14,7 +14,15 @@ from datetime import datetime
 import pytz
 
 
-socketio = SocketIO(app, cors_allowed_origins=['http://localhost:5173', 'http://127.0.0.1:5173', 'https://skillbridge-project-1.onrender.com', 'https://skillbridge-platform-9xtd.onrender.com'])
+# SocketIO configuration with Railway domains
+socketio = SocketIO(app, cors_allowed_origins=[
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://skillbridge-project-1.onrender.com',
+    'https://skillbridge-platform-9xtd.onrender.com',
+    'https://*.railway.app',
+    'https://skillbridge-production.up.railway.app'
+])
 
 # Load environment variables from .env file
 load_dotenv()
@@ -2175,5 +2183,4 @@ def current_user():
         return make_response({'error': 'User not found'}, 404)
 
 if __name__ == '__main__':
-    app.run(port=5555, debug=True)
-    socketio.run(app, debug=True)
+    socketio.run(app, port=5555, debug=True)

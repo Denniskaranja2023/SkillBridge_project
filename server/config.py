@@ -34,7 +34,8 @@ app.secret_key = b'\xae\xf2\xe4\x92\xe2\x99\x94\xa6\x81\x1a\xbe\xe4)\xf5\xbd\x93
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_DOMAIN'] = 'skillbridge-platform-9xtd.onrender.com'
+# Make session cookie domain configurable for different platforms (render, railway, etc.)
+app.config['SESSION_COOKIE_DOMAIN'] = os.getenv('SESSION_COOKIE_DOMAIN', None)
 
 
 metadata = MetaData(naming_convention={
@@ -42,7 +43,14 @@ metadata = MetaData(naming_convention={
 })
 db = SQLAlchemy(metadata=metadata)
 
-CORS(app, supports_credentials=True, origins=['http://localhost:5173', 'http://127.0.0.1:5173', 'https://skillbridge-project-1.onrender.com', 'https://skillbridge-platform-9xtd.onrender.com'])
+CORS(app, supports_credentials=True, origins=[
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://skillbridge-project-1.onrender.com',
+    'https://skillbridge-platform-9xtd.onrender.com',
+    'https://skillbridgeproject-production.up.railway.app',
+    'https://skillbridge-production.up.railway.app'
+])
 
 migrate= Migrate(app,db)
 
