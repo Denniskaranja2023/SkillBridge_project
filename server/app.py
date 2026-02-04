@@ -9,7 +9,7 @@ from flask_restful import Resource
 from flask_socketio import SocketIO, emit, join_room
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-from server.config import db, bcrypt, api , app
+from config import db, bcrypt, api, app
 from datetime import datetime
 import pytz
 
@@ -18,7 +18,7 @@ socketio = SocketIO(app, cors_allowed_origins=['http://localhost:5173', 'http://
 
 # Load environment variables from .env file
 load_dotenv()
-from server.models import (
+from models import (
     Client, Freelancer, Admin, Task, Application, Contract,
     Milestone, Payment, Review, Complaint,
     AuditLog, Skill, FreelancerSkill, TaskSkill, FreelancerExperience, Message
