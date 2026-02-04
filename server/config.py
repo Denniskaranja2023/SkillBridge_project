@@ -46,8 +46,7 @@ db = SQLAlchemy(metadata=metadata)
 CORS(app, supports_credentials=True, origins=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'https://skillbridge-project-1.onrender.com',
-    'https://skillbridge-platform-9xtd.onrender.com',
+    'https://skillbridge-frontend-e0a0.onrender.com',
     'https://skillbridgeproject-production.up.railway.app',
     'https://skillbridge-production.up.railway.app'
 ])
