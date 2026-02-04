@@ -321,58 +321,64 @@ api.add_resource(TaskResource, '/api/tasks', '/api/tasks/<int:task_id>')
 
 class ApplicationResource(Resource):
     # POST method for freelancers to submit applications with PDF cover letters
+    # This method handles both multipart/form-data (file upload) and JSON requests
     def post(self):
         try:
-            # Handle file upload
-            if 'cover_letter_file' not in request.files:
-                return make_response({'error': 'No file provided'}, 400)
+            # Check if this is a file upload request (FormData) or JSON request
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                # Handle file upload
+                if 'cover_letter_file' not in request.files:
+                    return make_response({'error': 'No file provided'}, 400)
 
-            file = request.files['cover_letter_file']
-            if file.filename == '':
-                return make_response({'error': 'No file selected'}, 400)
+                file = request.files['cover_letter_file']
+                if file.filename == '':
+                    return make_response({'error': 'No file selected'}, 400)
 
-            if not allowed_file(file.filename):
-                return make_response({'error': 'Only PDF files are allowed'}, 400)
+                if not allowed_file(file.filename):
+                    return make_response({'error': 'Only PDF files are allowed'}, 400)
 
-            # Get other form data
-            task_id = request.form.get('task_id')
-            freelancer_id = request.form.get('freelancer_id')
-            bid_amount = request.form.get('bid_amount')
-            estimated_days = request.form.get('estimated_days')
+                # Get other form data
+                task_id = request.form.get('task_id')
+                freelancer_id = request.form.get('freelancer_id')
+                bid_amount = request.form.get('bid_amount')
+                estimated_days = request.form.get('estimated_days')
 
-            if not all([task_id, freelancer_id, bid_amount, estimated_days]):
-                return make_response({'error': 'Missing required fields'}, 400)
+                if not all([task_id, freelancer_id, bid_amount, estimated_days]):
+                    return make_response({'error': 'Missing required fields'}, 400)
 
-            # Save file to cover_letters folder
-            filename = secure_filename(f"{freelancer_id}_{task_id}_{file.filename}")
-            file_path = os.path.join(app.config['UPLOAD_FOLDER_COVER_LETTERS'], filename)
-            file.save(file_path)
+                # Save file to cover_letters folder
+                filename = secure_filename(f"{freelancer_id}_{task_id}_{file.filename}")
+                file_path = os.path.join(app.config['UPLOAD_FOLDER_COVER_LETTERS'], filename)
+                file.save(file_path)
 
-            # Create application
-            application = Application(
-                task_id=task_id,
-                freelancer_id=freelancer_id,
-                bid_amount=bid_amount,
-                estimated_days=estimated_days,
-                cover_letter_file=filename
-            )
+                # Create application
+                application = Application(
+                    task_id=task_id,
+                    freelancer_id=freelancer_id,
+                    bid_amount=bid_amount,
+                    estimated_days=estimated_days,
+                    cover_letter_file=filename
+                )
 
-            db.session.add(application)
-            db.session.commit()
+                db.session.add(application)
+                db.session.commit()
 
-            return make_response(application.to_dict(rules=('-task', '-freelancer',)), 201)
+                return make_response(application.to_dict(rules=('-task', '-freelancer',)), 201)
+            else:
+                # Handle JSON request
+                data = request.get_json()
+                required_fields = ["task_id", "freelancer_id", "bid_amount", "estimated_days"]
+                if not all(field in data for field in required_fields):
+                    return make_response({'error': 'Missing required fields'}, 400)
+
+                application = Application(**data)
+                db.session.add(application)
+                db.session.commit()
+                return make_response(application.to_dict(rules=('-task', '-freelancer',)), 201)
 
         except Exception as e:
             db.session.rollback()
             return make_response({'error': str(e)}, 500)
-
-    # used by a freelancer to apply for a job
-    def post(self):
-        data = request.get_json()
-        application = Application(**data)
-        db.session.add(application)
-        db.session.commit()
-        return make_response(application.to_dict(rules=('-task', '-freelancer',)), 201)
     
     # can be used by a client to reject a bid(changing status to rejected)
     def put(self, application_id):
