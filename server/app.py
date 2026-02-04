@@ -92,6 +92,98 @@ def get_mpesa_token():
 #AI functionality (Google Gemini)
 ai_bp = Blueprint('ai', __name__)
 
+# Fallback template descriptions for when AI fails
+FALLBACK_DESCRIPTIONS = {
+    "web_development": """## Project Overview
+We are looking for an experienced web developer to create a modern, responsive website that meets our business requirements.
+
+## Project Scope
+- Design and develop a fully responsive website
+- Implement clean, semantic HTML/CSS/JavaScript code
+- Ensure cross-browser compatibility
+- Optimize for performance and SEO
+
+## Requirements
+- Proven experience with web development
+- Strong understanding of responsive design principles
+- Ability to work independently and communicate effectively
+- Attention to detail and commitment to quality
+
+## Deliverables
+- A fully functional website that meets all requirements
+- All source code and documentation
+- Basic training on website maintenance
+
+## Timeline
+Project to be completed within the agreed timeframe with regular updates.""",
+
+    "mobile_app": """## Project Overview
+We are seeking a skilled mobile app developer to build a native/cross-platform mobile application for iOS and Android.
+
+## Project Requirements
+- Design and develop a mobile app with intuitive UI/UX
+- Implement core features as specified
+- Ensure smooth performance and responsiveness
+- Follow platform-specific guidelines
+
+## Technical Requirements
+- Proficiency in React Native/Flutter/Swift/Kotlin
+- Experience with RESTful APIs integration
+- Knowledge of mobile app security best practices
+- Understanding of app store submission process
+
+## Deliverables
+- Fully functional mobile app
+- Complete source code and documentation
+- App store-ready build
+
+## Budget
+Flexible based on experience and project scope.""",
+
+    "default": """## Task Description
+We are looking for a skilled professional to complete this project to our satisfaction.
+
+## Project Requirements
+- Deliver high-quality work within the agreed timeline
+- Communicate regularly about project progress
+- Follow best practices in your field
+- Be open to feedback and revisions
+
+## What We Offer
+- Competitive compensation
+- Clear project requirements
+- Responsive communication
+- Potential for future collaborations
+
+## How to Apply
+Please submit your proposal including:
+- Relevant experience and portfolio
+- Estimated timeline and budget
+- Any questions about the project"""
+}
+
+def get_fallback_description(prompt, error_type="default"):
+    """Generate a fallback description based on the prompt and error type."""
+    # Try to detect the type of work from the prompt
+    prompt_lower = prompt.lower()
+    
+    if any(word in prompt_lower for word in ['web', 'website', 'react', 'frontend', 'fullstack', 'django', 'node']):
+        base_description = FALLBACK_DESCRIPTIONS["web_development"]
+    elif any(word in prompt_lower for word in ['mobile', 'app', 'ios', 'android', 'flutter', 'react native']):
+        base_description = FALLBACK_DESCRIPTIONS["mobile_app"]
+    else:
+        base_description = FALLBACK_DESCRIPTIONS["default"]
+    
+    # Add a note about the AI limitation
+    note = f"""
+
+---
+**Note:** This is a template description. The AI-generated description could not be created due to: {error_type}. Please customize this template to fit your specific needs.
+---
+"""
+    
+    return base_description + note
+
 @ai_bp.route('/api/ai/describe-task', methods=['POST'])
 def describe_task():
     data = request.get_json()
@@ -103,7 +195,14 @@ def describe_task():
     api_key = os.getenv("GOOGLE_API_KEY")
     print(f"API Key found: {bool(api_key)}")
     if not api_key:
-        return jsonify({'error': 'Google Gemini API key not configured. Please set GOOGLE_API_KEY environment variable in .env file.'}), 500
+        print("WARNING: GOOGLE_API_KEY not found in environment")
+        # Return a fallback description with helpful instructions
+        fallback_desc = get_fallback_description(prompt, "API key not configured")
+        return jsonify({
+            'description': fallback_desc,
+            'warning': 'AI service unavailable - using template. Configure GOOGLE_API_KEY for AI-generated descriptions.',
+            'status': 'fallback'
+        })
 
     try:
         # Use Google Gemini REST API directly
@@ -113,7 +212,9 @@ def describe_task():
 
 Write a professional task description based on: {prompt}
 
-Please provide a clear, detailed, and professional description suitable for a freelance job posting."""
+Please provide a clear, detailed, and professional description suitable for a freelance job posting.
+
+Format your response with proper markdown headers and bullet points where appropriate."""
 
         payload = {
             "contents": [{
@@ -126,29 +227,74 @@ Please provide a clear, detailed, and professional description suitable for a fr
         # Convert payload to JSON string
         data = json.dumps(payload).encode('utf-8')
 
-        # Create request
+        # Create request with timeout
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
 
-        # Make request
-        with urllib.request.urlopen(req) as response:
+        # Make request with 30 second timeout
+        with urllib.request.urlopen(req, timeout=30) as response:
             result = json.loads(response.read().decode('utf-8'))
             ai_text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-        return jsonify({'description': ai_text})
+        print("AI description generated successfully")
+        return jsonify({'description': ai_text, 'status': 'success'})
 
     except urllib.error.HTTPError as e:
-        print("HTTP Error generating description:", e.code, e.read().decode('utf-8'))
-        # Provide a more helpful error message
-        error_message = e.read().decode('utf-8')
-        if "quota" in error_message.lower():
-            return jsonify({'error': 'Google Gemini API quota exceeded. Please check your billing status at https://makersuite.google.com/app/apikey'}), 500
-        elif "invalid" in error_message.lower() or "permission" in error_message.lower():
-            return jsonify({'error': 'Google Gemini API key invalid. Please check your API key at https://makersuite.google.com/app/apikey'}), 500
+        error_body = e.read().decode('utf-8')
+        print(f"HTTP Error generating description: {e.code}", error_body)
+        
+        # Provide a more helpful error message based on error type
+        if e.code == 429:
+            # Rate limit / quota exceeded
+            print("WARNING: Google Gemini API quota exceeded")
+            fallback_desc = get_fallback_description(prompt, "API quota exceeded")
+            return jsonify({
+                'description': fallback_desc,
+                'error': 'AI service quota exceeded - using template. Check your Google Gemini API quota at https://makersuite.google.com/app/apikey',
+                'status': 'fallback'
+            }), 200  # Return 200 so client can use the fallback
+        elif e.code == 400:
+            # Bad request - likely invalid API key or malformed request
+            print("WARNING: Bad request to Google Gemini API")
+            fallback_desc = get_fallback_description(prompt, "invalid request")
+            return jsonify({
+                'description': fallback_desc,
+                'error': 'AI service returned an error - using template. Please check your API configuration.',
+                'status': 'fallback'
+            }), 200
+        elif e.code == 401 or e.code == 403:
+            # Authentication/authorization error
+            print("WARNING: Invalid API key for Google Gemini")
+            fallback_desc = get_fallback_description(prompt, "invalid API key")
+            return jsonify({
+                'description': fallback_desc,
+                'error': 'AI service authentication failed - using template. Please check your GOOGLE_API_KEY configuration.',
+                'status': 'fallback'
+            }), 200
         else:
-            return jsonify({'error': f'AI generation failed: {error_message}'}), 500
+            fallback_desc = get_fallback_description(prompt, f"HTTP error {e.code}")
+            return jsonify({
+                'description': fallback_desc,
+                'error': f'AI generation failed with HTTP error {e.code} - using template',
+                'status': 'fallback'
+            }), 200
+
+    except urllib.error.URLError as e:
+        print(f"URL Error generating description: {e.reason}")
+        fallback_desc = get_fallback_description(prompt, f"network error ({e.reason})")
+        return jsonify({
+            'description': fallback_desc,
+            'error': f'AI service connection failed: {e.reason} - using template',
+            'status': 'fallback'
+        }), 200
+
     except Exception as e:
-        print("Error generating description:", e)
-        return jsonify({'error': f'AI generation failed: {str(e)}'}), 500
+        print("Error generating description:", str(e))
+        fallback_desc = get_fallback_description(prompt, str(e))
+        return jsonify({
+            'description': fallback_desc,
+            'error': f'AI generation failed: {str(e)} - using template',
+            'status': 'fallback'
+        }), 200
 
 
 

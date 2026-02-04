@@ -76,16 +76,32 @@ function PostTask() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate description');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      setFormData((prev) => ({ ...prev, description: data.description }));
-      setShowAIPrompt(false);
-      setAiPrompt("");
+      
+      // Handle the response
+      if (data.description) {
+        // Update the form with the generated description
+        setFormData((prev) => ({ ...prev, description: data.description }));
+        setShowAIPrompt(false);
+        setAiPrompt("");
+        
+        // Show warning if AI service was unavailable and we used a template
+        if (data.status === 'fallback') {
+          const message = data.warning || data.error || 'AI service was unavailable. A template description has been provided. Please customize it to fit your needs.';
+          alert(`⚠️ ${message}`);
+        } else {
+          // Success - show a brief success indicator
+          console.log('AI description generated successfully');
+        }
+      } else {
+        throw new Error('No description in response');
+      }
     } catch (error) {
       console.error('Error generating AI description:', error);
-      alert('Failed to generate description. Please try again.');
+      alert(`Failed to generate description: ${error.message}. Please try again or write the description manually.`);
     } finally {
       setIsGenerating(false);
     }
